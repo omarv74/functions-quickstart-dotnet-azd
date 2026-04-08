@@ -16,6 +16,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-09-01' existing 
   name: resourceName
 }
 
+var deploymentSuffix = take(toLower(uniqueString(resourceName, virtualNetworkName)), 6)
+
 // Storage DNS zone names
 var blobPrivateDNSZoneName = 'privatelink.blob.${environment().suffixes.storage}'
 var queuePrivateDNSZoneName = 'privatelink.queue.${environment().suffixes.storage}'
@@ -23,9 +25,9 @@ var tablePrivateDNSZoneName = 'privatelink.table.${environment().suffixes.storag
 
 // AVM module for Blob Private Endpoint with private DNS zone
 module blobPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' = if (enableBlob) {
-  name: 'blob-private-endpoint-deployment'
+  name: 'blob-pe-deployment-${resourceName}-${deploymentSuffix}'
   params: {
-    name: 'blob-private-endpoint'
+    name: 'blob-private-endpoint-${resourceName}-${deploymentSuffix}'
     location: location
     tags: tags
     subnetResourceId: '${vnet.id}/subnets/${subnetName}'
@@ -56,9 +58,9 @@ module blobPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' =
 
 // AVM module for Queue Private Endpoint with private DNS zone
 module queuePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' = if (enableQueue) {
-  name: 'queue-private-endpoint-deployment'
+  name: 'queue-pe-deployment-${resourceName}-${deploymentSuffix}'
   params: {
-    name: 'queue-private-endpoint'
+    name: 'queue-private-endpoint-${resourceName}-${deploymentSuffix}'
     location: location
     tags: tags
     subnetResourceId: '${vnet.id}/subnets/${subnetName}'
@@ -89,9 +91,9 @@ module queuePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
 
 // AVM module for Table Private Endpoint with private DNS zone
 module tablePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' = if (enableTable) {
-  name: 'table-private-endpoint-deployment'
+  name: 'table-pe-deployment-${resourceName}-${deploymentSuffix}'
   params: {
-    name: 'table-private-endpoint'
+    name: 'table-private-endpoint-${resourceName}-${deploymentSuffix}'
     location: location
     tags: tags
     subnetResourceId: '${vnet.id}/subnets/${subnetName}'
@@ -122,7 +124,7 @@ module tablePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
 
 // AVM module for Blob Private DNS Zone
 module privateDnsZoneBlobDeployment 'br/public:avm/res/network/private-dns-zone:0.7.1' = if (enableBlob) {
-  name: 'blob-private-dns-zone-deployment'
+  name: 'blob-dns-zone-deployment-${resourceName}-${deploymentSuffix}'
   params: {
     name: blobPrivateDNSZoneName
     location: 'global'
@@ -141,7 +143,7 @@ module privateDnsZoneBlobDeployment 'br/public:avm/res/network/private-dns-zone:
 
 // AVM module for Queue Private DNS Zone
 module privateDnsZoneQueueDeployment 'br/public:avm/res/network/private-dns-zone:0.7.1' = if (enableQueue) {
-  name: 'queue-private-dns-zone-deployment'
+  name: 'queue-dns-zone-deployment-${resourceName}-${deploymentSuffix}'
   params: {
     name: queuePrivateDNSZoneName
     location: 'global'
@@ -160,7 +162,7 @@ module privateDnsZoneQueueDeployment 'br/public:avm/res/network/private-dns-zone
 
 // AVM module for Table Private DNS Zone
 module privateDnsZoneTableDeployment 'br/public:avm/res/network/private-dns-zone:0.7.1' = if (enableTable) {
-  name: 'table-private-dns-zone-deployment'
+  name: 'table-dns-zone-deployment-${resourceName}-${deploymentSuffix}'
   params: {
     name: tablePrivateDNSZoneName
     location: 'global'
