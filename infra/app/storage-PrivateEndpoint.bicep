@@ -41,7 +41,7 @@ module blobPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' =
       }
     ]
     customDnsConfigs: []
-    // Creates private DNS zone and links
+    // Attaches the private endpoint to the existing DNS zone (zone is created separately below)
     privateDnsZoneGroup: {
       name: 'blobPrivateDnsZoneGroup'
       privateDnsZoneGroupConfigs: [
@@ -74,7 +74,7 @@ module queuePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
       }
     ]
     customDnsConfigs: []
-    // Creates private DNS zone and links
+    // Attaches the private endpoint to the existing DNS zone (zone is created separately below)
     privateDnsZoneGroup: {
       name: 'queuePrivateDnsZoneGroup'
       privateDnsZoneGroupConfigs: [
@@ -107,7 +107,7 @@ module tablePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
       }
     ]
     customDnsConfigs: []
-    // Creates private DNS zone and links
+    // Attaches the private endpoint to the existing DNS zone (zone is created separately below)
     privateDnsZoneGroup: {
       name: 'tablePrivateDnsZoneGroup'
       privateDnsZoneGroupConfigs: [
@@ -121,21 +121,13 @@ module tablePrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' 
 }
 
 // AVM module for Blob Private DNS Zone
+// VNet links are created separately below to avoid concurrent UpsertPrivateDnsZone conflicts.
 module privateDnsZoneBlobDeployment 'br/public:avm/res/network/private-dns-zone:0.7.1' = if (enableBlob) {
   name: '${resourceName}-blob-private-dns-zone-deployment'
   params: {
     name: blobPrivateDNSZoneName
     location: 'global'
     tags: tags
-    virtualNetworkLinks: [
-      {
-        name: '${resourceName}-blob-link-${take(toLower(uniqueString(resourceName, virtualNetworkName)), 4)}'
-        virtualNetworkResourceId: vnet.id
-        registrationEnabled: false
-        location: 'global'
-        tags: tags
-      }
-    ]
   }
 }
 
@@ -146,15 +138,6 @@ module privateDnsZoneQueueDeployment 'br/public:avm/res/network/private-dns-zone
     name: queuePrivateDNSZoneName
     location: 'global'
     tags: tags
-    virtualNetworkLinks: [
-      {
-        name: '${resourceName}-queue-link-${take(toLower(uniqueString(resourceName, virtualNetworkName)), 4)}'
-        virtualNetworkResourceId: vnet.id
-        registrationEnabled: false
-        location: 'global'
-        tags: tags
-      }
-    ]
   }
 }
 
@@ -165,14 +148,56 @@ module privateDnsZoneTableDeployment 'br/public:avm/res/network/private-dns-zone
     name: tablePrivateDNSZoneName
     location: 'global'
     tags: tags
-    virtualNetworkLinks: [
-      {
-        name: '${resourceName}-table-link-${take(toLower(uniqueString(resourceName, virtualNetworkName)), 4)}'
-        virtualNetworkResourceId: vnet.id
-        registrationEnabled: false
-        location: 'global'
-        tags: tags
-      }
-    ]
   }
+}
+
+// VNet links are created AFTER the private endpoints to serialize ARM's UpsertPrivateDnsZone operations:
+//   1) DNS zone creation  →  2) DNS zone group attachment (private endpoint)  →  3) VNet link
+// Creating the link concurrently with the zone or endpoint causes an ARM conflict error.
+resource blobVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (enableBlob) {
+  name: '${blobPrivateDNSZoneName}/${resourceName}-blob-link-${take(toLower(uniqueString(resourceName, virtualNetworkName)), 4)}'
+  location: 'global'
+  tags: tags
+  properties: {
+    virtualNetwork: {
+      id: vnet.id
+    }
+    registrationEnabled: false
+  }
+  dependsOn: [
+    privateDnsZoneBlobDeployment
+    blobPrivateEndpoint
+  ]
+}
+
+resource queueVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (enableQueue) {
+  name: '${queuePrivateDNSZoneName}/${resourceName}-queue-link-${take(toLower(uniqueString(resourceName, virtualNetworkName)), 4)}'
+  location: 'global'
+  tags: tags
+  properties: {
+    virtualNetwork: {
+      id: vnet.id
+    }
+    registrationEnabled: false
+  }
+  dependsOn: [
+    privateDnsZoneQueueDeployment
+    queuePrivateEndpoint
+  ]
+}
+
+resource tableVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (enableTable) {
+  name: '${tablePrivateDNSZoneName}/${resourceName}-table-link-${take(toLower(uniqueString(resourceName, virtualNetworkName)), 4)}'
+  location: 'global'
+  tags: tags
+  properties: {
+    virtualNetwork: {
+      id: vnet.id
+    }
+    registrationEnabled: false
+  }
+  dependsOn: [
+    privateDnsZoneTableDeployment
+    tablePrivateEndpoint
+  ]
 }
