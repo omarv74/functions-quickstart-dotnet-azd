@@ -14,7 +14,7 @@ param tags object = {}
 
 // Migrated to use AVM module instead of direct resource declaration
 module virtualNetwork 'br/public:avm/res/network/virtual-network:0.6.1' = {
-  name: 'vnet-deployment'
+  name: '${vNetName}-deployment'
   params: {
     // Required parameters
     name: vNetName
